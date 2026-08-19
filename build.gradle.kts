@@ -5,7 +5,6 @@ plugins {
 }
 
 group = "com.livepasses"
-version = "0.1.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -74,8 +73,12 @@ publishing {
 
     repositories {
         maven {
-            name = "OSSRH"
-            url = uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
+            // Legacy OSSRH (s01.oss.sonatype.org) is decommissioned — it answers 402.
+            // This is Sonatype's OSSRH Staging API compatibility endpoint, which keeps
+            // the same deploy protocol while authenticating against the Central Portal.
+            // Credentials are a Portal *user token*, not a Sonatype account login.
+            name = "CentralPortal"
+            url = uri("https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/")
             credentials {
                 username = System.getenv("MAVEN_USERNAME")
                 password = System.getenv("MAVEN_PASSWORD")

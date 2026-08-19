@@ -32,8 +32,8 @@ public class WebhookSetupExample {
                             .events(List.of(
                                     WebhookEventType.PASS_GENERATED,
                                     WebhookEventType.PASS_REDEEMED,
-                                    WebhookEventType.PASS_CHECKED_IN,
-                                    WebhookEventType.BATCH_COMPLETED))
+                                    WebhookEventType.PASS_UPDATED,
+                                    WebhookEventType.TRANSFER_ACCEPTED))
                             .build());
             System.out.printf("  Webhook ID: %s%n", webhook.getId());
             System.out.printf("  URL: %s%n", webhook.getUrl());

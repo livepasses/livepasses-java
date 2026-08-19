@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Operations on passes: generate, list, lookup, validate, redeem, check-in, etc.
@@ -120,14 +121,25 @@ public class PassesResource {
     }
 
     /**
-     * Bulk update multiple passes.
+     * Push a scoped update to all eligible passes of a template.
      */
-    public void bulkUpdate(BulkUpdatePassesParams params) {
-        http.post("/api/passes/bulk-update", params, Void.class);
+    public void pushTemplate(String templateId, PushTemplatePassesParams params) {
+        http.post("/api/passes/template/" + templateId + "/push", params, Void.class);
     }
 
     /**
-     * Redeem a pass (generic redemption).
+     * Redeem a single-use pass.
+     *
+     * <p>Redeeming is terminal, so a pass the holder is meant to keep using must not go through
+     * here. Multi-use passes are refused with {@code 422} / {@code OPERATION_NOT_ALLOWED} instead
+     * of being consumed. Use the operation built for the type:
+     *
+     * <ul>
+     *   <li>loyalty and stamp cards: {@code stamp} (and {@code unstamp} to undo)
+     *   <li>memberships: {@code membershipCheckIn}, which does not consume the pass
+     *   <li>coupons that allow multiple redemptions: {@code redeemCoupon}
+     *   <li>gift cards: {@code redeemGiftCard}, which takes the amount to deduct
+     * </ul>
      */
     public PassRedemptionResult redeem(String passId, RedeemPassParams params) {
         return http.post("/api/passes/" + passId + "/redeem", params, PassRedemptionResult.class);
@@ -152,6 +164,49 @@ public class PassesResource {
      */
     public PassRedemptionResult loyaltyTransact(String passId, LoyaltyTransactionParams params) {
         return http.post("/api/passes/" + passId + "/loyalty/transact", params, PassRedemptionResult.class);
+    }
+
+    /**
+     * Deduct an amount from a gift card's balance. A redemption for more than the remaining
+     * balance is rejected, and the balance is left untouched in that case.
+     */
+    public PassRedemptionResult redeemGiftCard(String passId, RedeemGiftCardParams params) {
+        return http.post("/api/passes/" + passId + "/giftcard/redeem", params, PassRedemptionResult.class);
+    }
+
+    /**
+     * Check in a membership pass. Unlike an event check-in the pass is NOT consumed — it stays
+     * valid for the next visit. On a quota-limited membership the remaining uses decrement, and a
+     * check-in at zero is denied.
+     */
+    public PassRedemptionResult membershipCheckIn(String passId, MembershipCheckInParams params) {
+        return http.post("/api/passes/" + passId + "/membership/check-in", params, PassRedemptionResult.class);
+    }
+
+    /**
+     * Add one stamp to the stamp card behind this pass. Repeat stamps on the same card are refused
+     * inside a short cooldown, so a double scan at the till does not award two stamps.
+     */
+    public PassRedemptionResult stamp(String passId) {
+        // Passes an empty map, not null: the endpoint binds a request DTO, and a null body is sent
+        // as noBody() with no Content-Type, which FastEndpoints answers with 415.
+        return http.post("/api/passes/" + passId + "/stamp", Map.of(), PassRedemptionResult.class);
+    }
+
+    /**
+     * Take back the most recent stamp, for correcting a mis-scan. Refused when there is nothing to
+     * undo, or when the last stamp was paid for by an external order.
+     */
+    public PassRedemptionResult unstamp(String passId) {
+        // See stamp(): an empty map rather than null, or the request-DTO endpoint answers 415.
+        return http.post("/api/passes/" + passId + "/unstamp", Map.of(), PassRedemptionResult.class);
+    }
+
+    /**
+     * Resolve a scanned barcode or NFC tap value and redeem it in one call.
+     */
+    public PassRedemptionResult redeemByScan(RedeemByScanParams params) {
+        return http.post("/api/passes/redeem-by-scan", params, PassRedemptionResult.class);
     }
 
     /**

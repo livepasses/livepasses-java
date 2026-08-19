@@ -196,19 +196,15 @@ client.passes().update("pass-id",
         .build());
 ```
 
-### Bulk update
+### Push a scoped update
 
-Update multiple passes at once:
+Push field updates to all eligible passes of a template:
 
 ```java
-client.passes().bulkUpdate(
-    BulkUpdatePassesParams.builder()
-        .passIds(List.of("pass-1", "pass-2", "pass-3"))
-        .businessData(BusinessData.builder().memberTier("Gold").build())
-        .businessContext(BusinessContext.builder()
-            .loyalty(LoyaltyContext.builder()
-                .seasonalMessage("Happy holidays from our team!").build())
-            .build())
+client.passes().pushTemplate("template-id",
+    PushTemplatePassesParams.builder()
+        .updatedFields(Map.of("gate", "Gate C"))
+        .reason("Event-wide gate change")
         .build());
 ```
 
@@ -476,14 +472,12 @@ See the [`examples/`](./examples/) directory for runnable classes:
 Run any example with:
 ```bash
 export LIVEPASSES_API_KEY="your-api-key"
-cd sdks/java
 ./gradlew run -PmainClass=com.livepasses.sdk.examples.GeneratePassesExample
 ```
 
 ## Building from Source
 
 ```bash
-cd sdks/java
 ./gradlew build    # compile + test
 ./gradlew test     # run tests only
 ./gradlew jar      # produce JAR

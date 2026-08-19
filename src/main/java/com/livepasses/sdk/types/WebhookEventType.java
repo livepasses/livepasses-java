@@ -2,6 +2,13 @@ package com.livepasses.sdk.types;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+/**
+ * Events the API accepts on a webhook subscription.
+ *
+ * <p>This enum mirrors the server's allow-list exactly. Subscribing to anything outside it is
+ * rejected with a 400, so a value that is not here is not a "not yet supported" event — it is a
+ * request that always fails.
+ */
 public enum WebhookEventType {
 
     @JsonProperty("pass.generated")
@@ -13,15 +20,28 @@ public enum WebhookEventType {
     @JsonProperty("pass.updated")
     PASS_UPDATED,
 
-    @JsonProperty("pass.expired")
-    PASS_EXPIRED,
+    @JsonProperty("loyalty.transacted")
+    LOYALTY_TRANSACTED,
 
-    @JsonProperty("pass.checked_in")
-    PASS_CHECKED_IN,
+    @JsonProperty("coupon.applied")
+    COUPON_APPLIED,
 
-    @JsonProperty("batch.completed")
-    BATCH_COMPLETED,
+    @JsonProperty("transfer.initiated")
+    TRANSFER_INITIATED,
 
-    @JsonProperty("batch.failed")
-    BATCH_FAILED
+    @JsonProperty("transfer.accepted")
+    TRANSFER_ACCEPTED,
+
+    @JsonProperty("transfer.declined")
+    TRANSFER_DECLINED,
+
+    @JsonProperty("transfer.revoked")
+    TRANSFER_REVOKED,
+
+    @JsonProperty("transfer.expired")
+    TRANSFER_EXPIRED,
+
+    /** Every event above. */
+    @JsonProperty("*")
+    ALL
 }
