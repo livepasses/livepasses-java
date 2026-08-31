@@ -18,7 +18,7 @@ repositories {
 }
 
 dependencies {
-    api("com.fasterxml.jackson.core:jackson-databind:2.17.0")
+    api("com.fasterxml.jackson.core:jackson-databind:2.21.3")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.0")
     testImplementation("org.wiremock:wiremock:3.9.0")
