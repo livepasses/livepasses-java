@@ -22,7 +22,7 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.0")
     testImplementation("org.wiremock:wiremock:3.9.0")
-    testImplementation("org.assertj:assertj-core:3.26.0")
+    testImplementation("org.assertj:assertj-core:3.27.7")
 }
 
 tasks.test {
