@@ -5,8 +5,14 @@ public class RateLimitException extends LivepassesException {
 
     private final Integer retryAfter;
 
+    /** Creates the exception with its historical status, 429. */
     public RateLimitException(String message, String code, Integer retryAfter, String details) {
-        super(message, 429, code, details);
+        this(message, code, retryAfter, details, 429);
+    }
+
+    /** Creates the exception carrying the response's real HTTP status. */
+    public RateLimitException(String message, String code, Integer retryAfter, String details, int status) {
+        super(message, status, code, details);
         this.retryAfter = retryAfter;
     }
 

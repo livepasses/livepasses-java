@@ -14,6 +14,10 @@ public class GeneratedPass {
     private final UnifiedBusinessData businessData;
     private final String qrCode;
     private final String status;
+    /** Present when status is "failed", e.g. "MEMBERSHIP_NUMBER_CONFLICT" */
+    private final String errorCode;
+    /** Present when status is "failed" */
+    private final String errorMessage;
     private final AnalyticsInfo analytics;
 
     @JsonCreator
@@ -25,6 +29,8 @@ public class GeneratedPass {
             @JsonProperty("businessData") UnifiedBusinessData businessData,
             @JsonProperty("qrCode") String qrCode,
             @JsonProperty("status") String status,
+            @JsonProperty("errorCode") String errorCode,
+            @JsonProperty("errorMessage") String errorMessage,
             @JsonProperty("analytics") AnalyticsInfo analytics) {
         this.id = id;
         this.customerEmail = customerEmail;
@@ -33,7 +39,25 @@ public class GeneratedPass {
         this.businessData = businessData;
         this.qrCode = qrCode;
         this.status = status;
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
         this.analytics = analytics;
+    }
+
+    /**
+     * The constructor from before {@code errorCode} and {@code errorMessage} existed, kept so code
+     * compiled against it keeps linking. Both error fields are null.
+     */
+    public GeneratedPass(
+            String id,
+            String customerEmail,
+            String confirmationCode,
+            PassPlatforms platforms,
+            UnifiedBusinessData businessData,
+            String qrCode,
+            String status,
+            AnalyticsInfo analytics) {
+        this(id, customerEmail, confirmationCode, platforms, businessData, qrCode, status, null, null, analytics);
     }
 
     public String getId() { return id; }
@@ -43,5 +67,7 @@ public class GeneratedPass {
     public UnifiedBusinessData getBusinessData() { return businessData; }
     public String getQrCode() { return qrCode; }
     public String getStatus() { return status; }
+    public String getErrorCode() { return errorCode; }
+    public String getErrorMessage() { return errorMessage; }
     public AnalyticsInfo getAnalytics() { return analytics; }
 }

@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -33,6 +34,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * - Automatic retry with exponential backoff for 429 and 5xx
  */
 public class LivepassesHttpClient {
+
+    // Only these methods are safe to replay against a 5xx: no SDK request carries an
+    // Idempotency-Key, so the retry gate is the HTTP method alone (controller ruling R2).
+    private static final Set<String> IDEMPOTENT_METHODS = Set.of("GET", "HEAD", "PUT", "DELETE");
 
     private final String apiKey;
     private final String baseUrl;
@@ -82,56 +87,52 @@ public class LivepassesHttpClient {
 
     private <T> T request(String method, String path, Map<String, String> params, Object body, Class<T> responseType) {
         HttpResponse<String> response = fetchWithRetry(method, path, params, body);
-        String responseBody = response.body();
+        JavaType envelopeType = objectMapper.getTypeFactory()
+                .constructParametricType(ApiResponse.class, responseType);
+        ApiResponse<T> apiResponse = readEnvelope(response.body(), envelopeType);
 
-        try {
-            JavaType envelopeType = objectMapper.getTypeFactory()
-                    .constructParametricType(ApiResponse.class, responseType);
-            ApiResponse<T> apiResponse = objectMapper.readValue(responseBody, envelopeType);
+        if (response.statusCode() >= 400 || (apiResponse != null && !apiResponse.isSuccess())) {
+            throwApiError(apiResponse != null ? apiResponse.getError() : null, response);
+        }
 
-            if (!apiResponse.isSuccess()) {
-                throwApiError(apiResponse, response);
-            }
-
-            return apiResponse.getData();
-        } catch (LivepassesException e) {
-            throw e;
-        } catch (Exception e) {
-            // For void responses (e.g. delete), data may be null
+        if (apiResponse == null) {
+            // Void responses (e.g. delete) carry no body to parse.
             if (responseType == Void.class) {
                 return null;
             }
-            throw new LivepassesException(
-                    "Failed to parse API response: " + e.getMessage(),
-                    response.statusCode(), "PARSE_ERROR");
+            throw new LivepassesException("Failed to parse API response", response.statusCode(), "PARSE_ERROR");
         }
+
+        return apiResponse.getData();
     }
 
     private <T> PagedResponse<T> requestPaged(String path, Map<String, String> params, TypeReference<List<T>> itemType) {
         HttpResponse<String> response = fetchWithRetry("GET", path, params, null);
-        String responseBody = response.body();
+        JavaType listType = objectMapper.getTypeFactory().constructType(itemType);
+        JavaType pagedType = objectMapper.getTypeFactory()
+                .constructParametricType(ApiPagedResponse.class, listType.getContentType());
+        ApiPagedResponse<T> apiResponse = readEnvelope(response.body(), pagedType);
 
+        if (response.statusCode() >= 400 || (apiResponse != null && !apiResponse.isSuccess())) {
+            throwApiError(apiResponse != null ? apiResponse.getError() : null, response);
+        }
+
+        if (apiResponse == null) {
+            throw new LivepassesException("Failed to parse paged API response", response.statusCode(), "PARSE_ERROR");
+        }
+
+        return new PagedResponse<>(apiResponse.getItems(), apiResponse.getPagination());
+    }
+
+    /** Parses the response body as an envelope; returns null for an empty (challenge 401) or non-JSON (proxy error page) body. */
+    private <E> E readEnvelope(String body, JavaType type) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
         try {
-            JavaType listType = objectMapper.getTypeFactory().constructType(itemType);
-            JavaType pagedType = objectMapper.getTypeFactory()
-                    .constructParametricType(ApiPagedResponse.class, listType.getContentType());
-            ApiPagedResponse<T> apiResponse = objectMapper.readValue(responseBody, pagedType);
-
-            if (!apiResponse.isSuccess()) {
-                ApiResponse.ApiError error = apiResponse.getError();
-                String msg = error != null ? error.getMessage() : "API request failed with status " + response.statusCode();
-                String code = error != null ? error.getCode() : "GENERAL_ERROR";
-                String details = error != null ? error.getDetails() : null;
-                throw ExceptionFactory.createTypedException(msg, response.statusCode(), code, details, parseRetryAfter(response));
-            }
-
-            return new PagedResponse<>(apiResponse.getItems(), apiResponse.getPagination());
-        } catch (LivepassesException e) {
-            throw e;
+            return objectMapper.readValue(body, type);
         } catch (Exception e) {
-            throw new LivepassesException(
-                    "Failed to parse paged API response: " + e.getMessage(),
-                    response.statusCode(), "PARSE_ERROR");
+            return null;
         }
     }
 
@@ -175,8 +176,10 @@ public class LivepassesHttpClient {
                     continue;
                 }
 
-                // Retry on 5xx (server error) - fewer retries
-                if (response.statusCode() >= 500 && attempt < Math.min(maxAttempts, 3)) {
+                // Retry on 5xx (server error) — only for idempotent methods, and fewer retries.
+                // No SDK request carries an Idempotency-Key, so the gate is the HTTP method alone.
+                if (response.statusCode() >= 500 && IDEMPOTENT_METHODS.contains(method.toUpperCase())
+                        && attempt < Math.min(maxAttempts, 3)) {
                     sleep(getBackoffDelay(attempt));
                     continue;
                 }
@@ -204,12 +207,13 @@ public class LivepassesHttpClient {
                 0, "NETWORK_ERROR");
     }
 
-    private <T> void throwApiError(ApiResponse<T> apiResponse, HttpResponse<String> response) {
-        ApiResponse.ApiError error = apiResponse.getError();
-        String msg = error != null ? error.getMessage() : "API request failed with status " + response.statusCode();
-        String code = error != null ? error.getCode() : "GENERAL_ERROR";
+    private void throwApiError(ApiResponse.ApiError error, HttpResponse<String> response) {
+        String msg = error != null && error.getMessage() != null
+                ? error.getMessage() : "API request failed with status " + response.statusCode();
+        String code = error != null && error.getCode() != null ? error.getCode() : "GENERAL_ERROR";
         String details = error != null ? error.getDetails() : null;
-        throw ExceptionFactory.createTypedException(msg, response.statusCode(), code, details, parseRetryAfter(response));
+        Map<String, List<String>> fields = error != null ? error.getFields() : null;
+        throw ExceptionFactory.createTypedException(msg, response.statusCode(), code, details, parseRetryAfter(response), fields);
     }
 
     private String buildUrl(String path, Map<String, String> params) {

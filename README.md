@@ -172,27 +172,27 @@ PassRedemptionResult result = client.passes().checkIn("pass-id",
             .name("Gate 1").latitude(40.71).longitude(-74.00).build())
         .build());
 
-// Coupon redemption with notes
+// Coupon redemption with free-form context (metadata)
 PassRedemptionResult result = client.passes().redeemCoupon("pass-id",
     RedeemCouponParams.builder()
         .location(RedemptionLocation.builder().name("Store #42").build())
-        .notes("Applied to order #12345")
+        .metadata(Map.of("orderId", "12345"))
         .build());
 ```
 
 ### Update a pass
 
-Update business data or context on an existing pass:
+Change fields on an existing pass and, optionally, notify the holder. `updatedFields` keys are
+updatable field names such as `validUntil`, `memberTier` or `points`; a request needs at least one
+updated field or a `messageBody`. Pass `notify(false)` to update silently.
 
 ```java
 client.passes().update("pass-id",
     UpdatePassParams.builder()
-        .businessData(BusinessData.builder()
-            .currentPoints(750).memberTier("Platinum").build())
-        .businessContext(BusinessContext.builder()
-            .loyalty(LoyaltyContext.builder()
-                .programUpdate("Congratulations on reaching Platinum!").build())
-            .build())
+        .updatedField("memberTier", "Platinum")
+        .reason("Reached 750 points")
+        .messageHeader("Welcome to Platinum")
+        .messageBody("Congratulations on reaching Platinum!")
         .build());
 ```
 
@@ -243,6 +243,7 @@ client.passes().generate(
                 .customer(CustomerInfo.builder()
                     .firstName("Jane").lastName("Doe").email("jane@example.com").build())
                 .businessData(BusinessData.builder()
+                    // Identifies the member — use a distinct number per person.
                     .membershipNumber("MEM-001").currentPoints(500).memberTier("Gold").build())
                 .build()
         ))
@@ -302,10 +303,13 @@ TemplateDetail template = client.templates().create(
     CreateTemplateParams.builder()
         .name("VIP Event Pass")
         .description("Premium event ticket template")
+        // The block you send decides the template type: "event" makes an event ticket.
         .businessFeatures(Map.of(
-            "passType", "event",
-            "hasSeating", true,
-            "supportedPlatforms", List.of("apple", "google")
+            "event", Map.of(
+                "eventName", "Aurora Music Fest",
+                "eventDate", "2030-06-15T20:00:00Z",
+                "venueName", "Aurora Arena",
+                "showSeatNumbers", true)
         ))
         .build());
 System.out.printf("Created: %s — %s%n", template.getId(), template.getName());
@@ -350,6 +354,18 @@ client.webhooks().delete("webhook-id");
 ```
 
 ## Error Handling
+
+The API answers every refusal with a real HTTP status — `400`, `403`, `404`, `409`, `422`, `429`,
+`500`, `502` or `503` — and the body is always the envelope
+`{success:false,data:null,error:{code,message,details,timestamp,traceId,fields?}}`. The two
+exceptions are a challenge `401` (empty body) and a proxy error (which may not be JSON at all).
+
+The SDK raises a typed exception from **any** non-2xx response, or from a parsed envelope with
+`success:false` — this applies to every call, including paged list calls. An empty or non-JSON
+body still raises a typed exception, built from the HTTP status alone. Classification checks
+`error.code` first and falls back to the HTTP status only when the code is unrecognized or
+absent; the message and code themselves fall back (to a generic message, and to
+`GENERAL_ERROR`) only when the field is `null`.
 
 All errors extend `LivepassesException` (unchecked) for precise catch handling:
 
@@ -406,14 +422,16 @@ try {
 
 ### Exception hierarchy
 
-| Exception | HTTP Status | When |
+| Exception | Typical status | When |
 |-----------|------------|------|
 | `AuthenticationException` | 401 | Invalid, expired, or revoked API key |
-| `ValidationException` | 400 | Request validation failed |
+| `ValidationException` | 400 | Request validation failed. Carries `getFields()` (`Map<String, List<String>>`, field name \| validation messages) when the API's `error.code` is `VALIDATION_ERROR` |
 | `ForbiddenException` | 403 | Insufficient permissions |
 | `NotFoundException` | 404 | Resource not found |
 | `RateLimitException` | 429 | Rate limit exceeded |
-| `QuotaExceededException` | 403 | API quota or subscription limit exceeded |
+| `QuotaExceededException` | 422 | API quota or subscription limit exceeded |
+
+The status column is the one each class usually carries; the error's `getStatus()` is always the response's real HTTP status. A `401` is always the authentication error and a `403` always the forbidden error, whatever `error.code` says. A `409` without a mapped code, and every `5xx`, raise the base `LivepassesException`.
 | `BusinessRuleException` | 422 | Business rule violation (pass expired, already used, etc.) |
 
 ## Pagination
@@ -457,7 +475,10 @@ for (GlobalPassDto pass : PaginationIterator.iterable(
 
 The SDK automatically retries on:
 - **429 Too Many Requests** — honors `Retry-After` header
-- **5xx Server Errors** — exponential backoff with jitter
+- **5xx Server Errors** — exponential backoff with jitter, and **only for idempotent HTTP
+  methods** (`GET`, `HEAD`, `PUT`, `DELETE`). A `POST` that hits a `5xx` is never retried,
+  because no SDK request carries an `Idempotency-Key` and retrying it could double-execute the
+  operation (for example, generating passes twice).
 
 ## Examples
 

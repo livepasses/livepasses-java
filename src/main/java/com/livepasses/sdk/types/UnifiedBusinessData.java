@@ -15,6 +15,11 @@ public class UnifiedBusinessData {
     private final String ticketType;
     private final String formattedPrice;
     // Loyalty
+    /**
+     * Loyalty: identifies the member (max 50 chars, case-insensitive). An existing number links the
+     * pass to that member; a new one creates a member; a number belonging to someone whose phone and
+     * email both differ is refused with errorCode MEMBERSHIP_NUMBER_CONFLICT. Omit to have one generated.
+     */
     private final String membershipNumber;
     private final Integer currentPoints;
     private final String memberTier;

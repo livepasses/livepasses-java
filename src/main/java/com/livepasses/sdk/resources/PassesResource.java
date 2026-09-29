@@ -72,6 +72,8 @@ public class PassesResource {
                     null,
                     null,
                     s.getStatus(),
+                    null,
+                    null,
                     null
             ));
         }
@@ -114,7 +116,8 @@ public class PassesResource {
     }
 
     /**
-     * Update a pass's business data.
+     * Update a pass: change fields ({@code updatedFields}) and/or notify the holder
+     * ({@code messageHeader}/{@code messageBody}). See {@link UpdatePassParams}.
      */
     public void update(String passId, UpdatePassParams params) {
         http.put("/api/passes/" + passId, params, Void.class);

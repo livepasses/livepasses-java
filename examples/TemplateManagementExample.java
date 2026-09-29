@@ -31,11 +31,20 @@ public class TemplateManagementExample {
                     CreateTemplateParams.builder()
                             .name("VIP Concert Pass")
                             .description("Premium concert ticket with VIP access")
+                            // The template type is decided by which block is present:
+                            // an "event" block makes an event ticket.
                             .businessFeatures(Map.of(
-                                    "passType", "event",
-                                    "hasSeating", true,
-                                    "hasGateInfo", true,
-                                    "supportedPlatforms", List.of("apple", "google")
+                                    "event", Map.of(
+                                            "eventName", "Aurora Music Fest",
+                                            "eventDate", "2030-06-15T20:00:00Z",
+                                            "venueName", "Aurora Arena",
+                                            "showSeatNumbers", true,
+                                            "showGateInfo", true,
+                                            "sectionTypes", List.of("VIP")),
+                                    "branding", Map.of(
+                                            "primaryColor", "#1A1A1D",
+                                            "textColor", "#FFFFFF",
+                                            "brandName", "AURORA FEST")
                             ))
                             .build());
             System.out.printf("  Created: %s — \"%s\"%n  Status: %s%n%n",
@@ -47,12 +56,10 @@ public class TemplateManagementExample {
                     UpdateTemplateParams.builder()
                             .name("VIP Concert Pass v2")
                             .description("Updated premium concert ticket with backstage access")
+                            // PUT merges: send only what changed; omitted event fields keep their values.
                             .businessFeatures(Map.of(
-                                    "passType", "event",
-                                    "hasSeating", true,
-                                    "hasGateInfo", true,
-                                    "hasBackstageAccess", true,
-                                    "supportedPlatforms", List.of("apple", "google")
+                                    "event", Map.of(
+                                            "sectionTypes", List.of("VIP", "Backstage"))
                             ))
                             .build());
             System.out.printf("  Updated: \"%s\"%n%n", updated.getName());

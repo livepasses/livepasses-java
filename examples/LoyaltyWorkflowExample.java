@@ -38,6 +38,7 @@ public class LoyaltyWorkflowExample {
                                                     .firstName("Carlos").lastName("Rivera")
                                                     .email("carlos@example.com").phone("+57300123456").build())
                                             .businessData(BusinessData.builder()
+                                                    // Identifies the member — use a distinct number per person.
                                                     .membershipNumber("MEM-2026-001")
                                                     .currentPoints(0).memberTier("Bronze")
                                                     .accountBalance(0.0).build())
@@ -78,14 +79,10 @@ public class LoyaltyWorkflowExample {
             System.out.println("Upgrading to Gold tier...");
             client.passes().update(passId,
                     UpdatePassParams.builder()
-                            .businessData(BusinessData.builder()
-                                    .currentPoints(600).memberTier("Gold").build())
-                            .businessContext(BusinessContext.builder()
-                                    .loyalty(LoyaltyContext.builder()
-                                            .programUpdate("Congratulations! You've been upgraded to Gold tier!")
-                                            .seasonalMessage("Enjoy double points this month!")
-                                            .build())
-                                    .build())
+                            .updatedField("memberTier", "Gold")
+                            .reason("Reached 600 points")
+                            .messageHeader("Welcome to Gold")
+                            .messageBody("Congratulations! You've been upgraded to Gold tier!")
                             .build());
             System.out.println("  Tier updated to Gold\n");
 

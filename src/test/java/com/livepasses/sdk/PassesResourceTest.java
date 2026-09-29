@@ -48,6 +48,19 @@ class PassesResourceTest {
     }
 
     @Test
+    void generatedPassKeepsItsPreErrorFieldsConstructor() {
+        // Binary compatibility: callers compiled against the constructor from before errorCode and
+        // errorMessage were added must keep linking. The overload leaves both null.
+        GeneratedPass pass = new GeneratedPass(
+                "pass-1", "jane@example.com", null, null, null, null, "active", null);
+
+        assertThat(pass.getId()).isEqualTo("pass-1");
+        assertThat(pass.getStatus()).isEqualTo("active");
+        assertThat(pass.getErrorCode()).isNull();
+        assertThat(pass.getErrorMessage()).isNull();
+    }
+
+    @Test
     void shouldGenerateAndWaitSync(WireMockRuntimeInfo wm) {
         stubFor(post(urlEqualTo("/api/passes/generate"))
                 .willReturn(okJson(MockResponses.successEnvelope(
@@ -190,6 +203,73 @@ class PassesResourceTest {
 
         verify(postRequestedFor(urlEqualTo("/api/passes/pass-1/check-in"))
                 .withRequestBody(containing("\"latitude\":40.71")));
+    }
+
+    @Test
+    void updateSendsOnlyTheFieldsThePassUpdateEndpointDeclares(WireMockRuntimeInfo wm) {
+        // The API refuses any undeclared body field with a 400 (#797). The body must be exactly
+        // UpdatePassCommand's shape: updatedFields, reason, messageHeader, messageBody, notify.
+        stubFor(put(urlEqualTo("/api/passes/pass-1"))
+                .willReturn(okJson(MockResponses.successEnvelope("null"))));
+
+        Livepasses client = createClient(wm);
+        client.passes().update("pass-1",
+                UpdatePassParams.builder()
+                        .updatedField("memberTier", "Gold")
+                        .updatedField("points", 600)
+                        .reason("Tier upgrade")
+                        .messageHeader("Welcome to Gold")
+                        .messageBody("Enjoy double points this month!")
+                        .notify(true)
+                        .build());
+
+        verify(putRequestedFor(urlEqualTo("/api/passes/pass-1"))
+                .withRequestBody(equalToJson("{"
+                        + "\"updatedFields\":{\"memberTier\":\"Gold\",\"points\":600},"
+                        + "\"reason\":\"Tier upgrade\","
+                        + "\"messageHeader\":\"Welcome to Gold\","
+                        + "\"messageBody\":\"Enjoy double points this month!\","
+                        + "\"notify\":true}")));
+    }
+
+    @Test
+    void updateOmitsUnsetFields(WireMockRuntimeInfo wm) {
+        stubFor(put(urlEqualTo("/api/passes/pass-1"))
+                .willReturn(okJson(MockResponses.successEnvelope("null"))));
+
+        Livepasses client = createClient(wm);
+        client.passes().update("pass-1",
+                UpdatePassParams.builder()
+                        .updatedFields(java.util.Map.of("validUntil", "2026-12-31"))
+                        .build());
+
+        verify(putRequestedFor(urlEqualTo("/api/passes/pass-1"))
+                .withRequestBody(equalToJson("{\"updatedFields\":{\"validUntil\":\"2026-12-31\"}}")));
+    }
+
+    @Test
+    void redeemFamilyBodiesCarryOnlyDeclaredFields(WireMockRuntimeInfo wm) {
+        // notes was never declared by any redeem endpoint; the API now refuses it (#797).
+        stubFor(post(urlMatching("/api/passes/pass-1/(redeem|check-in|redeem-coupon)"))
+                .willReturn(okJson(MockResponses.successEnvelope(
+                        MockResponses.passRedemptionResult()))));
+
+        Livepasses client = createClient(wm);
+        RedemptionLocation location = RedemptionLocation.builder().name("Store #42").build();
+        java.util.Map<String, String> metadata = java.util.Map.of("orderId", "12345");
+
+        client.passes().redeem("pass-1",
+                RedeemPassParams.builder().location(location).metadata(metadata).build());
+        client.passes().checkIn("pass-1",
+                CheckInParams.builder().location(location).metadata(metadata).build());
+        client.passes().redeemCoupon("pass-1",
+                RedeemCouponParams.builder().location(location).metadata(metadata).build());
+
+        String expected = "{\"location\":{\"name\":\"Store #42\"},\"metadata\":{\"orderId\":\"12345\"}}";
+        for (String path : List.of("redeem", "check-in", "redeem-coupon")) {
+            verify(postRequestedFor(urlEqualTo("/api/passes/pass-1/" + path))
+                    .withRequestBody(equalToJson(expected)));
+        }
     }
 
     @Test

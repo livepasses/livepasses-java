@@ -16,6 +16,11 @@ public class BusinessData {
     private final String currency;
 
     // Loyalty-specific
+    /**
+     * Loyalty: identifies the member (max 50 chars, case-insensitive). An existing number links the
+     * pass to that member; a new one creates a member; a number belonging to someone whose phone and
+     * email both differ is refused with errorCode MEMBERSHIP_NUMBER_CONFLICT. Omit to have one generated.
+     */
     private final String membershipNumber;
     private final Integer currentPoints;
     private final String memberTier;
@@ -107,6 +112,11 @@ public class BusinessData {
         public Builder ticketType(String v) { this.ticketType = v; return this; }
         public Builder price(Double v) { this.price = v; return this; }
         public Builder currency(String v) { this.currency = v; return this; }
+        /**
+         * Loyalty: identifies the member (max 50 chars, case-insensitive). An existing number links the
+         * pass to that member; a new one creates a member; a number belonging to someone whose phone and
+         * email both differ is refused with errorCode MEMBERSHIP_NUMBER_CONFLICT. Omit to have one generated.
+         */
         public Builder membershipNumber(String v) { this.membershipNumber = v; return this; }
         public Builder currentPoints(Integer v) { this.currentPoints = v; return this; }
         public Builder memberTier(String v) { this.memberTier = v; return this; }

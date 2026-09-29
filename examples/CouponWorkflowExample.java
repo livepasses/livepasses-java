@@ -5,6 +5,7 @@ import com.livepasses.sdk.exceptions.*;
 import com.livepasses.sdk.types.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Coupon pass generation and redemption.
@@ -86,7 +87,7 @@ public class CouponWorkflowExample {
                             RedeemCouponParams.builder()
                                     .location(RedemptionLocation.builder()
                                             .name("Store #42").latitude(4.6097).longitude(-74.0817).build())
-                                    .notes("Applied to order #12345")
+                                    .metadata(Map.of("orderId", "12345"))
                                     .build());
                     System.out.printf("  Previous: %s%n  New: %s%n  At: %s%n%n",
                             redemption.getPreviousStatus(), redemption.getNewStatus(),
